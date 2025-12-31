@@ -1,6 +1,11 @@
 [package]
 name = "ovq"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+ignore = "0.4"
+walkdir = "2"
