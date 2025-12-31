@@ -117,6 +117,7 @@ jobs:
           SHA_ARM64: ${{ steps.sha.outputs.sha_arm64 }}
           SHA_X86_64: ${{ steps.sha.outputs.sha_x86_64 }}
         run: |
+          mkdir -p homebrew-tap/Formula
           cat > homebrew-tap/Formula/ovq.rb << EOF
           class Ovq < Formula
             desc "Query Obsidian vault files by frontmatter properties"
