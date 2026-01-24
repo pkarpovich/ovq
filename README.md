@@ -27,6 +27,7 @@ Using `grep` to find notes fails in several ways:
 | Find `priority > 2` | Not possible | grep can't do numeric comparisons |
 | Find notes with tag "project" | `grep "project"` | Matches anywhere, not just in tags array |
 | Find `created >= 2024-01-01` | Not possible | grep can't compare dates |
+| Find notes with `due` property | `grep "due:"` | Matches "due:" anywhere in file |
 | Case-insensitive field match | Complex regex | `Status:` vs `status:` requires extra work |
 
 ### The ovq solution
@@ -37,6 +38,8 @@ ovq 'priority > 2'                         # Numeric comparison
 ovq 'tags contains "project"'              # Array-aware search
 ovq 'created >= 2024-01-01'                # Date comparison
 ovq 'status = "active" AND priority > 2'   # Combine conditions
+ovq 'due'                                  # Property exists and is truthy
+ovq 'due != null'                          # Property exists (any value)
 ```
 
 ## Claude Code Integration
@@ -104,6 +107,15 @@ ovq 'tags contains "project"'   # Array membership
 ovq 'title contains "meeting"'  # Substring match
 ```
 
+### Existence Checks
+
+```bash
+ovq 'due'                  # Property exists and is truthy
+ovq '!due'                 # Property missing or falsy
+ovq 'due != null'          # Property exists (even if empty)
+ovq 'due = null'           # Property is missing
+```
+
 ### Boolean Logic
 
 ```bash
@@ -118,6 +130,7 @@ ovq '(type = "note" OR type = "doc") AND status = "published"'
 - Numbers: `42`, `3.14`
 - Booleans: `true`, `false`
 - Dates: `2024-01-15`
+- Null: `null`
 
 ## Matching Behavior
 

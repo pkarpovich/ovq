@@ -71,6 +71,15 @@ impl<'a> Parser<'a> {
             return Ok(expr);
         }
 
+        if self.match_char('!') {
+            self.skip_whitespace();
+            let field = self.parse_identifier()?;
+            return Ok(Expr::Truthy {
+                field,
+                negated: true,
+            });
+        }
+
         let field = self.parse_identifier()?;
         self.skip_whitespace();
 
@@ -80,11 +89,16 @@ impl<'a> Parser<'a> {
             return Ok(Expr::Contains { field, value });
         }
 
-        let op = self.parse_operator()?;
-        self.skip_whitespace();
-        let value = self.parse_value()?;
+        if let Some(op) = self.try_parse_operator() {
+            self.skip_whitespace();
+            let value = self.parse_value()?;
+            return Ok(Expr::Compare { field, op, value });
+        }
 
-        Ok(Expr::Compare { field, op, value })
+        Ok(Expr::Truthy {
+            field,
+            negated: false,
+        })
     }
 
     fn parse_identifier(&mut self) -> Result<String, ParseError> {
@@ -107,29 +121,29 @@ impl<'a> Parser<'a> {
         Ok(self.input[start..self.pos].to_string())
     }
 
-    fn parse_operator(&mut self) -> Result<CompareOp, ParseError> {
+    fn try_parse_operator(&mut self) -> Option<CompareOp> {
         self.skip_whitespace();
 
         if self.match_str(">=") {
-            return Ok(CompareOp::Ge);
+            return Some(CompareOp::Ge);
         }
         if self.match_str("<=") {
-            return Ok(CompareOp::Le);
+            return Some(CompareOp::Le);
         }
         if self.match_str("!=") {
-            return Ok(CompareOp::Ne);
+            return Some(CompareOp::Ne);
         }
         if self.match_char('=') {
-            return Ok(CompareOp::Eq);
+            return Some(CompareOp::Eq);
         }
         if self.match_char('>') {
-            return Ok(CompareOp::Gt);
+            return Some(CompareOp::Gt);
         }
         if self.match_char('<') {
-            return Ok(CompareOp::Lt);
+            return Some(CompareOp::Lt);
         }
 
-        Err(self.error("Expected operator (=, !=, >, <, >=, <=)"))
+        None
     }
 
     fn parse_value(&mut self) -> Result<Value, ParseError> {
@@ -144,6 +158,9 @@ impl<'a> Parser<'a> {
         }
         if self.match_keyword("false") {
             return Ok(Value::Bool(false));
+        }
+        if self.match_keyword("null") {
+            return Ok(Value::Null);
         }
 
         self.parse_number_or_date()
@@ -296,5 +313,58 @@ mod tests {
         } else {
             panic!("Expected date comparison");
         }
+    }
+
+    #[test]
+    fn test_truthy() {
+        let expr = parse("date").unwrap();
+        assert!(matches!(
+            expr,
+            Expr::Truthy {
+                negated: false,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_negated_truthy() {
+        let expr = parse("!date").unwrap();
+        assert!(matches!(
+            expr,
+            Expr::Truthy { negated: true, .. }
+        ));
+    }
+
+    #[test]
+    fn test_null_comparison() {
+        let expr = parse("date = null").unwrap();
+        assert!(matches!(
+            expr,
+            Expr::Compare {
+                op: CompareOp::Eq,
+                value: Value::Null,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_not_null_comparison() {
+        let expr = parse("date != null").unwrap();
+        assert!(matches!(
+            expr,
+            Expr::Compare {
+                op: CompareOp::Ne,
+                value: Value::Null,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_truthy_in_and() {
+        let expr = parse("date AND status = \"active\"").unwrap();
+        assert!(matches!(expr, Expr::And(_, _)));
     }
 }
