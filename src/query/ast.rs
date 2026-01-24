@@ -9,6 +9,10 @@ pub enum Expr {
         field: String,
         value: Value,
     },
+    Truthy {
+        field: String,
+        negated: bool,
+    },
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
 }
@@ -29,6 +33,7 @@ pub enum Value {
     Number(f64),
     Bool(bool),
     Date(Date),
+    Null,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

@@ -5,6 +5,7 @@ pub fn evaluate(expr: &Expr, frontmatter: &YamlValue) -> bool {
     match expr {
         Expr::Compare { field, op, value } => eval_compare(frontmatter, field, *op, value),
         Expr::Contains { field, value } => eval_contains(frontmatter, field, value),
+        Expr::Truthy { field, negated } => eval_truthy(frontmatter, field) != *negated,
         Expr::And(left, right) => evaluate(left, frontmatter) && evaluate(right, frontmatter),
         Expr::Or(left, right) => evaluate(left, frontmatter) || evaluate(right, frontmatter),
     }
@@ -33,11 +34,38 @@ fn normalize_for_compare(s: &str) -> String {
     strip_obsidian_link(s).to_lowercase()
 }
 
+fn eval_truthy(fm: &YamlValue, field: &str) -> bool {
+    let Some(value) = get_field_case_insensitive(fm, field) else {
+        return false;
+    };
+
+    match value {
+        YamlValue::Null => false,
+        YamlValue::Bool(b) => *b,
+        YamlValue::String(s) => !s.is_empty(),
+        YamlValue::Number(_) => true,
+        YamlValue::Sequence(seq) => !seq.is_empty(),
+        YamlValue::Mapping(map) => !map.is_empty(),
+        YamlValue::Tagged(_) => true,
+    }
+}
+
 fn eval_compare(fm: &YamlValue, field: &str, op: CompareOp, value: &Value) -> bool {
     try_eval_compare(fm, field, op, value).unwrap_or(false)
 }
 
 fn try_eval_compare(fm: &YamlValue, field: &str, op: CompareOp, value: &Value) -> Option<bool> {
+    if let Value::Null = value {
+        let field_is_null = get_field_case_insensitive(fm, field)
+            .map(|v| v.is_null())
+            .unwrap_or(true);
+        return match op {
+            CompareOp::Eq => Some(field_is_null),
+            CompareOp::Ne => Some(!field_is_null),
+            _ => None,
+        };
+    }
+
     let fm_value = get_field_case_insensitive(fm, field)?;
 
     match value {
@@ -61,6 +89,7 @@ fn try_eval_compare(fm: &YamlValue, field: &str, op: CompareOp, value: &Value) -
             let fm_date = yaml_to_date(fm_value)?;
             compare_ord(&fm_date, d, op)
         }
+        Value::Null => None,
     }
 }
 
@@ -210,5 +239,78 @@ mod tests {
             value: Value::String("project".to_string()),
         };
         assert!(evaluate(&expr, &fm));
+    }
+
+    #[test]
+    fn test_truthy_exists() {
+        let fm: YamlValue = from_str("date: 2024-01-01").unwrap();
+        let expr = Expr::Truthy {
+            field: "date".to_string(),
+            negated: false,
+        };
+        assert!(evaluate(&expr, &fm));
+    }
+
+    #[test]
+    fn test_truthy_missing() {
+        let fm: YamlValue = from_str("status: active").unwrap();
+        let expr = Expr::Truthy {
+            field: "date".to_string(),
+            negated: false,
+        };
+        assert!(!evaluate(&expr, &fm));
+    }
+
+    #[test]
+    fn test_truthy_negated() {
+        let fm: YamlValue = from_str("status: active").unwrap();
+        let expr = Expr::Truthy {
+            field: "date".to_string(),
+            negated: true,
+        };
+        assert!(evaluate(&expr, &fm));
+    }
+
+    #[test]
+    fn test_truthy_empty_string() {
+        let fm: YamlValue = from_str("date: \"\"").unwrap();
+        let expr = Expr::Truthy {
+            field: "date".to_string(),
+            negated: false,
+        };
+        assert!(!evaluate(&expr, &fm));
+    }
+
+    #[test]
+    fn test_null_eq_missing() {
+        let fm: YamlValue = from_str("status: active").unwrap();
+        let expr = Expr::Compare {
+            field: "date".to_string(),
+            op: CompareOp::Eq,
+            value: Value::Null,
+        };
+        assert!(evaluate(&expr, &fm));
+    }
+
+    #[test]
+    fn test_null_ne_exists() {
+        let fm: YamlValue = from_str("date: 2024-01-01").unwrap();
+        let expr = Expr::Compare {
+            field: "date".to_string(),
+            op: CompareOp::Ne,
+            value: Value::Null,
+        };
+        assert!(evaluate(&expr, &fm));
+    }
+
+    #[test]
+    fn test_null_eq_exists() {
+        let fm: YamlValue = from_str("date: 2024-01-01").unwrap();
+        let expr = Expr::Compare {
+            field: "date".to_string(),
+            op: CompareOp::Eq,
+            value: Value::Null,
+        };
+        assert!(!evaluate(&expr, &fm));
     }
 }
