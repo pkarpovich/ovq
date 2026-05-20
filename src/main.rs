@@ -1,4 +1,5 @@
 mod frontmatter;
+mod output;
 mod query;
 mod values;
 mod vault;

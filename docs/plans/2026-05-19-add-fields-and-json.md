@@ -107,18 +107,18 @@ Same logic everywhere (plain / TSV / JSON): vault-relative when the file lives u
 
 ### Task 1: Add `src/output.rs` with helpers and TSV formatter
 
-- [ ] add `mod output;` in `src/main.rs`
-- [ ] create `src/output.rs` with `pub fn format_path(path: &Path, vault: &Path) -> String` that produces the existing vault-relative-or-absolute path string. Both formatters use this one helper.
-- [ ] add a `pub fn parse_fields(spec: &str) -> Vec<String>` free function: split on `,`, trim each, drop empties, dedupe preserving first-occurrence order
-- [ ] add `pub fn format_tsv(path: &Path, vault: &Path, fm: &YamlValue, fields: &[&str]) -> String` (returns one line without trailing newline)
+- [x] add `mod output;` in `src/main.rs`
+- [x] create `src/output.rs` with `pub fn format_path(path: &Path, vault: &Path) -> String` that produces the existing vault-relative-or-absolute path string. Both formatters use this one helper.
+- [x] add a `pub fn parse_fields(spec: &str) -> Vec<String>` free function: split on `,`, trim each, drop empties, dedupe preserving first-occurrence order
+- [x] add `pub fn format_tsv(path: &Path, vault: &Path, fm: &YamlValue, fields: &[&str]) -> String` (returns one line without trailing newline)
   - case-insensitive field lookup against frontmatter keys
   - scalar values rendered as-is, with tab/newline normalised to single space
   - YAML sequences joined with `, ` (literal comma + space)
   - YAML mappings rendered as compact JSON inside the cell
   - missing field renders as empty column
   - wiki-links kept raw (no `[[]]` stripping)
-- [ ] write tests for `parse_fields`: trim, drop empties, dedupe, order preservation, single value, empty input
-- [ ] write tests for `format_tsv`:
+- [x] write tests for `parse_fields`: trim, drop empties, dedupe, order preservation, single value, empty input
+- [x] write tests for `format_tsv`:
   - all fields present, scalar values
   - missing field renders as empty column
   - case-insensitive lookup: `--fields Status` finds `status:`
@@ -127,7 +127,9 @@ Same logic everywhere (plain / TSV / JSON): vault-relative when the file lives u
   - tab and newline in a string value normalised to space
   - mixed types (string + number + bool + date)
   - wiki-link string kept raw
-- [ ] run `cargo test` - all tests must pass before task 2
+- [x] run `cargo test` - all tests must pass before task 2
+
+Note: serde_json dep (listed in Task 2) was pulled forward into Task 1 because TSV mapping cells require it; a minimal `yaml_to_json` helper was also added in this task. Task 2 still owns the date-handling refinement and `format_json_query` / `format_json_values`.
 
 ### Task 2: Add JSON formatter (`format_json`)
 
