@@ -161,7 +161,7 @@ pub(crate) fn yaml_to_json(v: &YamlValue) -> serde_json::Value {
 
 fn normalize_cell(s: &str) -> String {
     s.chars()
-        .map(|c| if c == '\t' || c == '\n' { ' ' } else { c })
+        .map(|c| if c == '\t' || c == '\n' || c == '\r' { ' ' } else { c })
         .collect()
 }
 
@@ -295,6 +295,13 @@ mod tests {
         let fm: YamlValue = from_str("note: \"line1\\tmid\\nline2\"").unwrap();
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["note"]);
         assert_eq!(line, "a.md\tline1 mid line2");
+    }
+
+    #[test]
+    fn format_tsv_carriage_return_normalised_to_space() {
+        let fm: YamlValue = from_str("note: \"line1\\r\\nline2\"").unwrap();
+        let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["note"]);
+        assert_eq!(line, "a.md\tline1  line2");
     }
 
     #[test]
