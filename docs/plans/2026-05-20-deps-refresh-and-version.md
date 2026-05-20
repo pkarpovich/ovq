@@ -72,10 +72,10 @@ The end product is shipped as v0.3.1.
 
 ### Task 2: Bump Rust toolchain pin
 
-- [ ] Update `.mise.toml` from `rust = "1.92"` to `rust = "1.95"`.
-- [ ] Run `mise install` (or `mise use`) to pull the toolchain locally.
-- [ ] Run `cargo build --release` and `cargo test`. Both must succeed on the new toolchain without code changes.
-- [ ] No new tests added; toolchain bump is a config change with no behavioural surface.
+- [x] Update `.mise.toml` from `rust = "1.92"` to `rust = "1.95"`.
+- [x] Run `mise install` (or `mise use`) to pull the toolchain locally.
+- [x] Run `cargo build --release` and `cargo test`. Both must succeed on the new toolchain without code changes.
+- [x] No new tests added; toolchain bump is a config change with no behavioural surface.
 
 **What we get across 1.93, 1.94, 1.95 - and why we are not refactoring to use any of it in this plan:**
 
