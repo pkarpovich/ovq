@@ -1,7 +1,7 @@
 use super::ast::{CompareOp, Date, Expr, Value};
-use serde_yaml::Value as YamlValue;
+use serde_json::Value as JsonValue;
 
-pub fn evaluate(expr: &Expr, frontmatter: &YamlValue) -> bool {
+pub fn evaluate(expr: &Expr, frontmatter: &JsonValue) -> bool {
     match expr {
         Expr::Compare { field, op, value } => eval_compare(frontmatter, field, *op, value),
         Expr::Contains { field, value } => eval_contains(frontmatter, field, value),
@@ -11,14 +11,12 @@ pub fn evaluate(expr: &Expr, frontmatter: &YamlValue) -> bool {
     }
 }
 
-fn get_field_case_insensitive<'a>(fm: &'a YamlValue, field: &str) -> Option<&'a YamlValue> {
-    let mapping = fm.as_mapping()?;
+fn get_field_case_insensitive<'a>(fm: &'a JsonValue, field: &str) -> Option<&'a JsonValue> {
+    let object = fm.as_object()?;
     let field_lower = field.to_lowercase();
-    for (key, value) in mapping {
-        if let Some(key_str) = key.as_str() {
-            if key_str.to_lowercase() == field_lower {
-                return Some(value);
-            }
+    for (key, value) in object {
+        if key.to_lowercase() == field_lower {
+            return Some(value);
         }
     }
     None
@@ -34,27 +32,26 @@ fn normalize_for_compare(s: &str) -> String {
     strip_obsidian_link(s).to_lowercase()
 }
 
-fn eval_truthy(fm: &YamlValue, field: &str) -> bool {
+fn eval_truthy(fm: &JsonValue, field: &str) -> bool {
     let Some(value) = get_field_case_insensitive(fm, field) else {
         return false;
     };
 
     match value {
-        YamlValue::Null => false,
-        YamlValue::Bool(b) => *b,
-        YamlValue::String(s) => !s.is_empty(),
-        YamlValue::Number(_) => true,
-        YamlValue::Sequence(seq) => !seq.is_empty(),
-        YamlValue::Mapping(map) => !map.is_empty(),
-        YamlValue::Tagged(_) => true,
+        JsonValue::Null => false,
+        JsonValue::Bool(b) => *b,
+        JsonValue::String(s) => !s.is_empty(),
+        JsonValue::Number(_) => true,
+        JsonValue::Array(seq) => !seq.is_empty(),
+        JsonValue::Object(map) => !map.is_empty(),
     }
 }
 
-fn eval_compare(fm: &YamlValue, field: &str, op: CompareOp, value: &Value) -> bool {
+fn eval_compare(fm: &JsonValue, field: &str, op: CompareOp, value: &Value) -> bool {
     try_eval_compare(fm, field, op, value).unwrap_or(false)
 }
 
-fn try_eval_compare(fm: &YamlValue, field: &str, op: CompareOp, value: &Value) -> Option<bool> {
+fn try_eval_compare(fm: &JsonValue, field: &str, op: CompareOp, value: &Value) -> Option<bool> {
     if let Value::Null = value {
         let field_is_null = get_field_case_insensitive(fm, field)
             .map(|v| v.is_null())
@@ -70,11 +67,11 @@ fn try_eval_compare(fm: &YamlValue, field: &str, op: CompareOp, value: &Value) -
 
     match value {
         Value::String(s) => {
-            let fm_str = yaml_to_string(fm_value)?;
+            let fm_str = json_to_string(fm_value)?;
             compare_str(&fm_str, s, op)
         }
         Value::Number(n) => {
-            let fm_num = yaml_to_number(fm_value)?;
+            let fm_num = json_to_number(fm_value)?;
             compare_float(fm_num, *n, op)
         }
         Value::Bool(b) => {
@@ -86,14 +83,14 @@ fn try_eval_compare(fm: &YamlValue, field: &str, op: CompareOp, value: &Value) -
             }
         }
         Value::Date(d) => {
-            let fm_date = yaml_to_date(fm_value)?;
+            let fm_date = json_to_date(fm_value)?;
             compare_ord(&fm_date, d, op)
         }
         Value::Null => None,
     }
 }
 
-fn eval_contains(fm: &YamlValue, field: &str, value: &Value) -> bool {
+fn eval_contains(fm: &JsonValue, field: &str, value: &Value) -> bool {
     let Some(fm_value) = get_field_case_insensitive(fm, field) else {
         return false;
     };
@@ -104,35 +101,35 @@ fn eval_contains(fm: &YamlValue, field: &str, value: &Value) -> bool {
 
     let needle_normalized = normalize_for_compare(needle);
 
-    if let Some(arr) = fm_value.as_sequence() {
+    if let Some(arr) = fm_value.as_array() {
         return arr.iter().any(|item| {
-            yaml_to_string(item)
+            json_to_string(item)
                 .map(|s| normalize_for_compare(&s) == needle_normalized)
                 .unwrap_or(false)
         });
     }
 
-    if let Some(s) = yaml_to_string(fm_value) {
+    if let Some(s) = json_to_string(fm_value) {
         return normalize_for_compare(&s).contains(&needle_normalized);
     }
 
     false
 }
 
-fn yaml_to_string(v: &YamlValue) -> Option<String> {
+fn json_to_string(v: &JsonValue) -> Option<String> {
     match v {
-        YamlValue::String(s) => Some(s.clone()),
-        YamlValue::Number(n) => Some(n.to_string()),
-        YamlValue::Bool(b) => Some(b.to_string()),
+        JsonValue::String(s) => Some(s.clone()),
+        JsonValue::Number(n) => Some(n.to_string()),
+        JsonValue::Bool(b) => Some(b.to_string()),
         _ => None,
     }
 }
 
-fn yaml_to_number(v: &YamlValue) -> Option<f64> {
+fn json_to_number(v: &JsonValue) -> Option<f64> {
     v.as_f64().or_else(|| v.as_i64().map(|i| i as f64))
 }
 
-fn yaml_to_date(v: &YamlValue) -> Option<Date> {
+fn json_to_date(v: &JsonValue) -> Option<Date> {
     let s = v.as_str()?;
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() != 3 {
@@ -175,11 +172,11 @@ fn compare_float(a: f64, b: f64, op: CompareOp) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_yaml::from_str;
+    use serde_json::json;
 
     #[test]
     fn test_string_eq() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let expr = Expr::Compare {
             field: "status".to_string(),
             op: CompareOp::Eq,
@@ -190,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_case_insensitive_field() {
-        let fm: YamlValue = from_str("Status: active").unwrap();
+        let fm = json!({"Status": "active"});
         let expr = Expr::Compare {
             field: "status".to_string(),
             op: CompareOp::Eq,
@@ -201,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_case_insensitive_value() {
-        let fm: YamlValue = from_str("status: ACTIVE").unwrap();
+        let fm = json!({"status": "ACTIVE"});
         let expr = Expr::Compare {
             field: "status".to_string(),
             op: CompareOp::Eq,
@@ -212,7 +209,7 @@ mod tests {
 
     #[test]
     fn test_obsidian_link_stripping() {
-        let fm: YamlValue = from_str("project: \"[[Graph0mane]]\"").unwrap();
+        let fm = json!({"project": "[[Graph0mane]]"});
         let expr = Expr::Compare {
             field: "project".to_string(),
             op: CompareOp::Eq,
@@ -223,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_contains_array() {
-        let fm: YamlValue = from_str("tags: [a, b, c]").unwrap();
+        let fm = json!({"tags": ["a", "b", "c"]});
         let expr = Expr::Contains {
             field: "tags".to_string(),
             value: Value::String("b".to_string()),
@@ -233,7 +230,7 @@ mod tests {
 
     #[test]
     fn test_contains_case_insensitive() {
-        let fm: YamlValue = from_str("tags: [Project, TODO]").unwrap();
+        let fm = json!({"tags": ["Project", "TODO"]});
         let expr = Expr::Contains {
             field: "tags".to_string(),
             value: Value::String("project".to_string()),
@@ -243,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_truthy_exists() {
-        let fm: YamlValue = from_str("date: 2024-01-01").unwrap();
+        let fm = json!({"date": "2024-01-01"});
         let expr = Expr::Truthy {
             field: "date".to_string(),
             negated: false,
@@ -253,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_truthy_missing() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let expr = Expr::Truthy {
             field: "date".to_string(),
             negated: false,
@@ -263,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_truthy_negated() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let expr = Expr::Truthy {
             field: "date".to_string(),
             negated: true,
@@ -273,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_truthy_empty_string() {
-        let fm: YamlValue = from_str("date: \"\"").unwrap();
+        let fm = json!({"date": ""});
         let expr = Expr::Truthy {
             field: "date".to_string(),
             negated: false,
@@ -283,7 +280,7 @@ mod tests {
 
     #[test]
     fn test_null_eq_missing() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let expr = Expr::Compare {
             field: "date".to_string(),
             op: CompareOp::Eq,
@@ -294,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_null_ne_exists() {
-        let fm: YamlValue = from_str("date: 2024-01-01").unwrap();
+        let fm = json!({"date": "2024-01-01"});
         let expr = Expr::Compare {
             field: "date".to_string(),
             op: CompareOp::Ne,
@@ -305,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_null_eq_exists() {
-        let fm: YamlValue = from_str("date: 2024-01-01").unwrap();
+        let fm = json!({"date": "2024-01-01"});
         let expr = Expr::Compare {
             field: "date".to_string(),
             op: CompareOp::Eq,

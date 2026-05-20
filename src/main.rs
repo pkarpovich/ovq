@@ -62,7 +62,7 @@ fn main() -> ExitCode {
         vault::collect_markdown_files(&vault_path)
     };
 
-    let frontmatters: Vec<(PathBuf, serde_yaml::Value)> = files
+    let frontmatters: Vec<(PathBuf, serde_json::Value)> = files
         .into_iter()
         .filter_map(|path| {
             let fm = frontmatter::parse_frontmatter(&path)?;
@@ -89,12 +89,12 @@ fn main() -> ExitCode {
 }
 
 fn run_values_mode(
-    frontmatters: &[(PathBuf, serde_yaml::Value)],
+    frontmatters: &[(PathBuf, serde_json::Value)],
     property: &str,
     show_count: bool,
     json: bool,
 ) -> ExitCode {
-    let data: Vec<(String, serde_yaml::Value)> = frontmatters
+    let data: Vec<(String, serde_json::Value)> = frontmatters
         .iter()
         .map(|(p, fm)| (p.display().to_string(), fm.clone()))
         .collect();
@@ -117,7 +117,7 @@ fn run_values_mode(
 }
 
 fn run_query_mode(
-    frontmatters: &[(PathBuf, serde_yaml::Value)],
+    frontmatters: &[(PathBuf, serde_json::Value)],
     query_str: &str,
     vault_path: &Path,
     fields_spec: Option<&str>,
@@ -131,7 +131,7 @@ fn run_query_mode(
         }
     };
 
-    let matches: Vec<(PathBuf, serde_yaml::Value)> = frontmatters
+    let matches: Vec<(PathBuf, serde_json::Value)> = frontmatters
         .iter()
         .filter(|(_, fm)| query::evaluate(&expr, fm))
         .map(|(p, fm)| (p.clone(), fm.clone()))

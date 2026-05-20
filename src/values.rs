@@ -1,7 +1,7 @@
-use serde_yaml::Value as YamlValue;
+use serde_json::Value;
 use std::collections::HashMap;
 
-pub fn collect_values(frontmatters: &[(String, YamlValue)], property: &str) -> HashMap<String, usize> {
+pub fn collect_values(frontmatters: &[(String, Value)], property: &str) -> HashMap<String, usize> {
     let mut counts: HashMap<String, usize> = HashMap::new();
 
     for (_, fm) in frontmatters {
@@ -10,7 +10,7 @@ pub fn collect_values(frontmatters: &[(String, YamlValue)], property: &str) -> H
         };
 
         match value {
-            YamlValue::Sequence(arr) => {
+            Value::Array(arr) => {
                 for item in arr {
                     if let Some(s) = value_to_string(item) {
                         *counts.entry(s).or_default() += 1;
@@ -43,11 +43,11 @@ pub fn format_values(counts: HashMap<String, usize>, show_count: bool) -> Vec<St
     }
 }
 
-fn value_to_string(v: &YamlValue) -> Option<String> {
+fn value_to_string(v: &Value) -> Option<String> {
     match v {
-        YamlValue::String(s) if !s.is_empty() => Some(s.clone()),
-        YamlValue::Number(n) => Some(n.to_string()),
-        YamlValue::Bool(b) => Some(b.to_string()),
+        Value::String(s) if !s.is_empty() => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        Value::Bool(b) => Some(b.to_string()),
         _ => None,
     }
 }
@@ -55,18 +55,14 @@ fn value_to_string(v: &YamlValue) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_yaml::from_str;
+    use serde_json::json;
 
     #[test]
     fn test_collect_values() {
-        let fm1: YamlValue = from_str("status: active").unwrap();
-        let fm2: YamlValue = from_str("status: done").unwrap();
-        let fm3: YamlValue = from_str("status: active").unwrap();
-
         let data = vec![
-            ("a.md".to_string(), fm1),
-            ("b.md".to_string(), fm2),
-            ("c.md".to_string(), fm3),
+            ("a.md".to_string(), json!({"status": "active"})),
+            ("b.md".to_string(), json!({"status": "done"})),
+            ("c.md".to_string(), json!({"status": "active"})),
         ];
 
         let counts = collect_values(&data, "status");
@@ -76,8 +72,7 @@ mod tests {
 
     #[test]
     fn test_collect_array_values() {
-        let fm: YamlValue = from_str("tags: [a, b, a]").unwrap();
-        let data = vec![("x.md".to_string(), fm)];
+        let data = vec![("x.md".to_string(), json!({"tags": ["a", "b", "a"]}))];
 
         let counts = collect_values(&data, "tags");
         assert_eq!(counts.get("a"), Some(&2));

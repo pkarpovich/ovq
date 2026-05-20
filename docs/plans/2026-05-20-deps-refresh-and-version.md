@@ -95,15 +95,15 @@ Rust 1.95's `if let` guards in match arms is the only feature with a real future
 
 ### Task 4: Replace serde_yaml with serde-saphyr targeting `serde_json::Value`
 
-- [ ] Edit `Cargo.toml`: remove `serde_yaml = "0.9"`; add `serde-saphyr = "0.0.26"` (or whatever is the latest stable at the time of the run - confirm with `cargo search serde-saphyr` before committing).
-- [ ] In `src/frontmatter.rs`, change the `parse_frontmatter` return type from `Option<serde_yaml::Value>` to `Option<serde_json::Value>`. Inside, call `serde_saphyr::from_str::<serde_json::Value>(yaml_text)` instead of `serde_yaml::from_str`. Decide the exact function name in code; the type signature change is the load-bearing part.
-- [ ] In every site that imported `serde_yaml as Yaml` / `serde_yaml::Value`, swap to `serde_json::Value`. Files: `src/main.rs`, `src/query/eval.rs`, `src/values.rs`, `src/output.rs`.
-- [ ] In `src/output.rs`, delete the `yaml_to_json` walker (and its tests) - it is now redundant because the input is already `serde_json::Value`. `format_json_query` simplifies: the `frontmatter` field is just the value directly, no walk needed.
-- [ ] Adapt every existing test that constructs a `serde_yaml::Value` literal to construct a `serde_json::Value` instead (typically via `serde_json::json!(...)` macro). Tests stay inline.
-- [ ] Add one new test in `src/frontmatter.rs` that parses a fixture with a YAML date (`2024-12-16`) and asserts it lands as an ISO 8601 string in the resulting `serde_json::Value` (preserving the behaviour ADR 0001 required from the v0.3.0 plan).
-- [ ] Add one new test that parses a fixture with a YAML array of strings and asserts the resulting `serde_json::Value` is a JSON array (not a single string), as serde-saphyr should preserve list shape.
-- [ ] Run `cargo test`. All 65 existing tests plus the two new ones must pass. Any failing test is a real behavioural difference and must be triaged before continuing.
-- [ ] Run `cargo clippy --all-targets -- -D warnings`. Clean.
+- [x] Edit `Cargo.toml`: remove `serde_yaml = "0.9"`; add `serde-saphyr = "0.0.26"` (or whatever is the latest stable at the time of the run - confirm with `cargo search serde-saphyr` before committing).
+- [x] In `src/frontmatter.rs`, change the `parse_frontmatter` return type from `Option<serde_yaml::Value>` to `Option<serde_json::Value>`. Inside, call `serde_saphyr::from_str::<serde_json::Value>(yaml_text)` instead of `serde_yaml::from_str`. Decide the exact function name in code; the type signature change is the load-bearing part.
+- [x] In every site that imported `serde_yaml as Yaml` / `serde_yaml::Value`, swap to `serde_json::Value`. Files: `src/main.rs`, `src/query/eval.rs`, `src/values.rs`, `src/output.rs`.
+- [x] In `src/output.rs`, delete the `yaml_to_json` walker (and its tests) - it is now redundant because the input is already `serde_json::Value`. `format_json_query` simplifies: the `frontmatter` field is just the value directly, no walk needed.
+- [x] Adapt every existing test that constructs a `serde_yaml::Value` literal to construct a `serde_json::Value` instead (typically via `serde_json::json!(...)` macro). Tests stay inline.
+- [x] Add one new test in `src/frontmatter.rs` that parses a fixture with a YAML date (`2024-12-16`) and asserts it lands as an ISO 8601 string in the resulting `serde_json::Value` (preserving the behaviour ADR 0001 required from the v0.3.0 plan).
+- [x] Add one new test that parses a fixture with a YAML array of strings and asserts the resulting `serde_json::Value` is a JSON array (not a single string), as serde-saphyr should preserve list shape.
+- [x] Run `cargo test`. All 65 existing tests plus the two new ones must pass. Any failing test is a real behavioural difference and must be triaged before continuing.
+- [x] Run `cargo clippy --all-targets -- -D warnings`. Clean.
 
 ### Task 5: Final verification and docs
 

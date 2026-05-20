@@ -1,4 +1,4 @@
-use serde_yaml::Value as YamlValue;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -27,7 +27,7 @@ pub fn parse_fields(spec: &str) -> Vec<String> {
     out
 }
 
-pub fn format_tsv(path: &Path, vault: &Path, fm: &YamlValue, fields: &[&str]) -> String {
+pub fn format_tsv(path: &Path, vault: &Path, fm: &Value, fields: &[&str]) -> String {
     let mut cells: Vec<String> = Vec::with_capacity(fields.len() + 1);
     cells.push(normalize_cell(&format_path(path, vault)));
     for field in fields {
@@ -41,27 +41,27 @@ pub fn format_tsv(path: &Path, vault: &Path, fm: &YamlValue, fields: &[&str]) ->
 }
 
 pub fn format_json_query(
-    matches: &[(PathBuf, YamlValue)],
+    matches: &[(PathBuf, Value)],
     vault: &Path,
     fields: Option<&[&str]>,
 ) -> String {
-    let items: Vec<serde_json::Value> = matches
+    let items: Vec<Value> = matches
         .iter()
         .map(|(path, fm)| {
             let frontmatter_json = match fields {
                 Some(list) => narrow_frontmatter(fm, list),
-                None => yaml_to_json(fm),
+                None => fm.clone(),
             };
             let mut obj = serde_json::Map::new();
             obj.insert(
                 "file".to_string(),
-                serde_json::Value::String(format_path(path, vault)),
+                Value::String(format_path(path, vault)),
             );
             obj.insert("frontmatter".to_string(), frontmatter_json);
-            serde_json::Value::Object(obj)
+            Value::Object(obj)
         })
         .collect();
-    serde_json::to_string(&serde_json::Value::Array(items))
+    serde_json::to_string(&Value::Array(items))
         .expect("serde_json::to_string of Value cannot fail")
 }
 
@@ -77,89 +77,48 @@ pub fn format_json_values(counts: &HashMap<String, usize>, show_count: bool) -> 
         items.sort_by(|a, b| a.0.cmp(&b.0));
     }
 
-    let arr: Vec<serde_json::Value> = items
+    let arr: Vec<Value> = items
         .into_iter()
         .map(|(value, count)| {
             let mut obj = serde_json::Map::new();
-            obj.insert("value".to_string(), serde_json::Value::String(value));
+            obj.insert("value".to_string(), Value::String(value));
             if show_count {
                 obj.insert(
                     "count".to_string(),
-                    serde_json::Value::Number((count as u64).into()),
+                    Value::Number((count as u64).into()),
                 );
             }
-            serde_json::Value::Object(obj)
+            Value::Object(obj)
         })
         .collect();
-    serde_json::to_string(&serde_json::Value::Array(arr))
+    serde_json::to_string(&Value::Array(arr))
         .expect("serde_json::to_string of Value cannot fail")
 }
 
-fn narrow_frontmatter(fm: &YamlValue, fields: &[&str]) -> serde_json::Value {
+fn narrow_frontmatter(fm: &Value, fields: &[&str]) -> Value {
     let mut obj = serde_json::Map::new();
     for field in fields {
         let Some((key, value)) = lookup_field_ci_entry(fm, field) else {
             continue;
         };
-        obj.insert(key.to_string(), yaml_to_json(value));
+        obj.insert(key.to_string(), value.clone());
     }
-    serde_json::Value::Object(obj)
+    Value::Object(obj)
 }
 
-fn lookup_field_ci_entry<'a>(fm: &'a YamlValue, name: &str) -> Option<(&'a str, &'a YamlValue)> {
-    let mapping = fm.as_mapping()?;
+fn lookup_field_ci_entry<'a>(fm: &'a Value, name: &str) -> Option<(&'a str, &'a Value)> {
+    let object = fm.as_object()?;
     let name_lower = name.to_lowercase();
-    for (key, value) in mapping {
-        let Some(key_str) = key.as_str() else {
-            continue;
-        };
-        if key_str.to_lowercase() == name_lower {
-            return Some((key_str, value));
+    for (key, value) in object {
+        if key.to_lowercase() == name_lower {
+            return Some((key.as_str(), value));
         }
     }
     None
 }
 
-pub(crate) fn lookup_field_ci<'a>(fm: &'a YamlValue, name: &str) -> Option<&'a YamlValue> {
+pub(crate) fn lookup_field_ci<'a>(fm: &'a Value, name: &str) -> Option<&'a Value> {
     lookup_field_ci_entry(fm, name).map(|(_, v)| v)
-}
-
-pub(crate) fn yaml_to_json(v: &YamlValue) -> serde_json::Value {
-    match v {
-        YamlValue::Null => serde_json::Value::Null,
-        YamlValue::Bool(b) => serde_json::Value::Bool(*b),
-        YamlValue::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                serde_json::Value::Number(i.into())
-            } else if let Some(u) = n.as_u64() {
-                serde_json::Value::Number(u.into())
-            } else if let Some(f) = n.as_f64() {
-                serde_json::Number::from_f64(f)
-                    .map(serde_json::Value::Number)
-                    .unwrap_or(serde_json::Value::Null)
-            } else {
-                serde_json::Value::Null
-            }
-        }
-        YamlValue::String(s) => serde_json::Value::String(s.clone()),
-        YamlValue::Sequence(seq) => {
-            serde_json::Value::Array(seq.iter().map(yaml_to_json).collect())
-        }
-        YamlValue::Mapping(map) => {
-            let mut obj = serde_json::Map::new();
-            for (k, val) in map {
-                let key = match k {
-                    YamlValue::String(s) => s.clone(),
-                    YamlValue::Bool(b) => b.to_string(),
-                    YamlValue::Number(n) => n.to_string(),
-                    _ => continue,
-                };
-                obj.insert(key, yaml_to_json(val));
-            }
-            serde_json::Value::Object(obj)
-        }
-        YamlValue::Tagged(t) => yaml_to_json(&t.value),
-    }
 }
 
 fn normalize_cell(s: &str) -> String {
@@ -168,33 +127,32 @@ fn normalize_cell(s: &str) -> String {
         .collect()
 }
 
-fn scalar_for_cell(v: &YamlValue) -> String {
+fn scalar_for_cell(v: &Value) -> String {
     match v {
-        YamlValue::Null => String::new(),
-        YamlValue::Bool(b) => b.to_string(),
-        YamlValue::Number(n) => n.to_string(),
-        YamlValue::String(s) => normalize_cell(s),
+        Value::Null => String::new(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => n.to_string(),
+        Value::String(s) => normalize_cell(s),
         _ => String::new(),
     }
 }
 
-fn render_cell_for_tsv(v: &YamlValue) -> String {
+fn render_cell_for_tsv(v: &Value) -> String {
     match v {
-        YamlValue::Sequence(seq) => {
+        Value::Array(seq) => {
             let parts: Vec<String> = seq
                 .iter()
                 .map(|item| match item {
-                    YamlValue::Mapping(_) | YamlValue::Sequence(_) => {
-                        serde_json::to_string(&yaml_to_json(item)).unwrap_or_default()
+                    Value::Object(_) | Value::Array(_) => {
+                        serde_json::to_string(item).unwrap_or_default()
                     }
                     _ => scalar_for_cell(item),
                 })
                 .collect();
             normalize_cell(&parts.join(", "))
         }
-        YamlValue::Mapping(_) => {
-            let json = yaml_to_json(v);
-            normalize_cell(&serde_json::to_string(&json).unwrap_or_default())
+        Value::Object(_) => {
+            normalize_cell(&serde_json::to_string(v).unwrap_or_default())
         }
         _ => scalar_for_cell(v),
     }
@@ -203,7 +161,7 @@ fn render_cell_for_tsv(v: &YamlValue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_yaml::from_str;
+    use serde_json::json;
     use std::path::PathBuf;
 
     #[test]
@@ -264,7 +222,7 @@ mod tests {
 
     #[test]
     fn format_tsv_all_scalars_present() {
-        let fm: YamlValue = from_str("status: active\nrating: 8\ndone: true").unwrap();
+        let fm = json!({"status": "active", "rating": 8, "done": true});
         let line = format_tsv(
             &note_path("a.md"),
             &vault(),
@@ -276,28 +234,28 @@ mod tests {
 
     #[test]
     fn format_tsv_missing_field_empty_column() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["status", "missing"]);
         assert_eq!(line, "a.md\tactive\t");
     }
 
     #[test]
     fn format_tsv_case_insensitive_lookup() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["Status"]);
         assert_eq!(line, "a.md\tactive");
     }
 
     #[test]
     fn format_tsv_sequence_joined_with_comma_space() {
-        let fm: YamlValue = from_str("tags: [a, b, c]").unwrap();
+        let fm = json!({"tags": ["a", "b", "c"]});
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["tags"]);
         assert_eq!(line, "a.md\ta, b, c");
     }
 
     #[test]
     fn format_tsv_mapping_rendered_as_compact_json() {
-        let fm: YamlValue = from_str("cover:\n  url: x\n  width: 500").unwrap();
+        let fm = json!({"cover": {"url": "x", "width": 500}});
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["cover"]);
         assert!(line.contains("\"url\":\"x\""));
         assert!(line.contains("\"width\":500"));
@@ -307,22 +265,26 @@ mod tests {
 
     #[test]
     fn format_tsv_tab_and_newline_normalised_to_space() {
-        let fm: YamlValue = from_str("note: \"line1\\tmid\\nline2\"").unwrap();
+        let fm = json!({"note": "line1\tmid\nline2"});
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["note"]);
         assert_eq!(line, "a.md\tline1 mid line2");
     }
 
     #[test]
     fn format_tsv_carriage_return_normalised_to_space() {
-        let fm: YamlValue = from_str("note: \"line1\\r\\nline2\"").unwrap();
+        let fm = json!({"note": "line1\r\nline2"});
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["note"]);
         assert_eq!(line, "a.md\tline1  line2");
     }
 
     #[test]
     fn format_tsv_mixed_types() {
-        let fm: YamlValue =
-            from_str("title: Hello\nrating: 9\nactive: true\ndate: 2024-01-15").unwrap();
+        let fm = json!({
+            "title": "Hello",
+            "rating": 9,
+            "active": true,
+            "date": "2024-01-15",
+        });
         let line = format_tsv(
             &note_path("a.md"),
             &vault(),
@@ -334,7 +296,7 @@ mod tests {
 
     #[test]
     fn format_tsv_path_with_tab_or_newline_normalised_to_space() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let weird = PathBuf::from("/vault/has\ttab/and\nnewline.md");
         let line = format_tsv(&weird, &vault(), &fm, &["status"]);
         assert_eq!(line, "has tab/and newline.md\tactive");
@@ -342,7 +304,7 @@ mod tests {
 
     #[test]
     fn format_tsv_wiki_link_kept_raw() {
-        let fm: YamlValue = from_str("author: \"[[Steve Jobs]]\"").unwrap();
+        let fm = json!({"author": "[[Steve Jobs]]"});
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &["author"]);
         assert_eq!(line, "a.md\t[[Steve Jobs]]");
     }
@@ -365,16 +327,16 @@ mod tests {
 
     #[test]
     fn format_json_query_empty_matches() {
-        let matches: Vec<(PathBuf, YamlValue)> = Vec::new();
+        let matches: Vec<(PathBuf, Value)> = Vec::new();
         assert_eq!(format_json_query(&matches, &vault(), None), "[]");
     }
 
     #[test]
     fn format_json_query_single_match_full_frontmatter() {
-        let fm: YamlValue = from_str("status: active\nrating: 8").unwrap();
+        let fm = json!({"status": "active", "rating": 8});
         let matches = vec![(note_path("a.md"), fm)];
         let out = format_json_query(&matches, &vault(), None);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed[0]["file"], "a.md");
         assert_eq!(parsed[0]["frontmatter"]["status"], "active");
         assert_eq!(parsed[0]["frontmatter"]["rating"], 8);
@@ -382,10 +344,10 @@ mod tests {
 
     #[test]
     fn format_json_query_with_fields_narrows() {
-        let fm: YamlValue = from_str("status: active\nrating: 8\nextra: skip").unwrap();
+        let fm = json!({"status": "active", "rating": 8, "extra": "skip"});
         let matches = vec![(note_path("a.md"), fm)];
         let out = format_json_query(&matches, &vault(), Some(&["status", "rating"]));
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         let fm_obj = parsed[0]["frontmatter"].as_object().unwrap();
         assert_eq!(fm_obj.len(), 2);
         assert!(fm_obj.contains_key("status"));
@@ -395,62 +357,62 @@ mod tests {
 
     #[test]
     fn format_json_query_with_fields_case_insensitive() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let matches = vec![(note_path("a.md"), fm)];
         let out = format_json_query(&matches, &vault(), Some(&["Status"]));
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed[0]["frontmatter"]["status"], "active");
     }
 
     #[test]
     fn format_json_query_yaml_array_stays_array() {
-        let fm: YamlValue = from_str("tags: [a, b, c]").unwrap();
+        let fm = json!({"tags": ["a", "b", "c"]});
         let matches = vec![(note_path("a.md"), fm)];
         let out = format_json_query(&matches, &vault(), None);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(parsed[0]["frontmatter"]["tags"], serde_json::json!(["a", "b", "c"]));
+        let parsed: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["frontmatter"]["tags"], json!(["a", "b", "c"]));
     }
 
     #[test]
     fn format_json_query_nested_map_stays_nested() {
-        let fm: YamlValue = from_str("cover:\n  url: x\n  width: 500").unwrap();
+        let fm = json!({"cover": {"url": "x", "width": 500}});
         let matches = vec![(note_path("a.md"), fm)];
         let out = format_json_query(&matches, &vault(), None);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed[0]["frontmatter"]["cover"]["url"], "x");
         assert_eq!(parsed[0]["frontmatter"]["cover"]["width"], 500);
     }
 
     #[test]
     fn format_json_query_yaml_date_renders_as_iso_string() {
-        let fm: YamlValue = from_str("date: 2024-01-15").unwrap();
+        let fm = json!({"date": "2024-01-15"});
         let matches = vec![(note_path("a.md"), fm)];
         let out = format_json_query(&matches, &vault(), None);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed[0]["frontmatter"]["date"], "2024-01-15");
     }
 
     #[test]
     fn format_json_query_vault_relative_path() {
-        let fm: YamlValue = from_str("k: v").unwrap();
+        let fm = json!({"k": "v"});
         let matches = vec![(PathBuf::from("/vault/sub/a.md"), fm)];
         let out = format_json_query(&matches, &vault(), None);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed[0]["file"], "sub/a.md");
     }
 
     #[test]
     fn format_json_query_absolute_path_when_outside_vault() {
-        let fm: YamlValue = from_str("k: v").unwrap();
+        let fm = json!({"k": "v"});
         let matches = vec![(PathBuf::from("/other/a.md"), fm)];
         let out = format_json_query(&matches, &vault(), None);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed[0]["file"], "/other/a.md");
     }
 
     #[test]
     fn format_json_query_is_compact_single_line() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let matches = vec![(note_path("a.md"), fm)];
         let out = format_json_query(&matches, &vault(), None);
         assert!(!out.contains('\n'));
@@ -470,8 +432,8 @@ mod tests {
         counts.insert("active".to_string(), 2);
         counts.insert("done".to_string(), 1);
         let out = format_json_values(&counts, false);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(parsed, serde_json::json!([{"value": "active"}, {"value": "done"}]));
+        let parsed: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed, json!([{"value": "active"}, {"value": "done"}]));
     }
 
     #[test]
@@ -480,10 +442,10 @@ mod tests {
         counts.insert("active".to_string(), 2);
         counts.insert("done".to_string(), 1);
         let out = format_json_values(&counts, true);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(
             parsed,
-            serde_json::json!([
+            json!([
                 {"value": "active", "count": 2},
                 {"value": "done", "count": 1}
             ])
@@ -497,7 +459,7 @@ mod tests {
         counts.insert("apple".to_string(), 5);
         counts.insert("mango".to_string(), 3);
         let out = format_json_values(&counts, false);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed[0]["value"], "apple");
         assert_eq!(parsed[1]["value"], "mango");
         assert_eq!(parsed[2]["value"], "zebra");
@@ -505,16 +467,16 @@ mod tests {
 
     #[test]
     fn format_json_query_with_empty_fields_slice_yields_empty_frontmatter() {
-        let fm: YamlValue = from_str("status: active\nrating: 8").unwrap();
+        let fm = json!({"status": "active", "rating": 8});
         let matches = vec![(note_path("a.md"), fm)];
         let out = format_json_query(&matches, &vault(), Some(&[]));
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert!(parsed[0]["frontmatter"].as_object().unwrap().is_empty());
     }
 
     #[test]
     fn format_tsv_with_empty_fields_slice_is_path_only() {
-        let fm: YamlValue = from_str("status: active").unwrap();
+        let fm = json!({"status": "active"});
         let line = format_tsv(&note_path("a.md"), &vault(), &fm, &[]);
         assert_eq!(line, "a.md");
     }
@@ -527,7 +489,7 @@ mod tests {
         counts.insert("banana".to_string(), 5);
         counts.insert("mango".to_string(), 3);
         let out = format_json_values(&counts, true);
-        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let parsed: Value = serde_json::from_str(&out).unwrap();
         assert_eq!(parsed[0]["value"], "apple");
         assert_eq!(parsed[1]["value"], "banana");
         assert_eq!(parsed[2]["value"], "mango");
