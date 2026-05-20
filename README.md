@@ -106,8 +106,8 @@ ovq --values status --json --count
 
 Default output is one matching file path per line. Two flags change the transport:
 
-- `--fields a,b,c` writes a TSV row per match: `path<TAB>a<TAB>b<TAB>c`. Pipe through `awk`, `cut`, `column -t`. Array fields are joined with `, `; nested objects render as compact JSON in the cell; tabs and newlines inside values are flattened to a single space. Use for ad-hoc inspection.
-- `--json` emits a compact JSON array. In query mode each entry is `{"file": ..., "frontmatter": {...}}` (narrowed to requested keys when combined with `--fields`). In values mode each entry is `{"value": ...}` or `{"value": ..., "count": N}` when `--count` is set. Use when you need to `jq` the result or feed it to another tool.
+- `--fields a,b,c` writes a TSV row per match: `path<TAB>a<TAB>b<TAB>c`. Pipe through `awk`, `cut`, `column -t`. Field names are matched case-insensitively, whitespace-trimmed, and deduplicated (first occurrence wins). Missing fields render as empty columns. Array fields are joined with `, `; nested objects render as compact JSON in the cell; tabs and newlines inside values are flattened to a single space. Use for ad-hoc inspection.
+- `--json` emits a compact JSON array. In query mode each entry is `{"file": ..., "frontmatter": {...}}` (narrowed to requested keys when combined with `--fields`). In values mode each entry is `{"value": ...}` or `{"value": ..., "count": N}` when `--count` is set. YAML dates render as ISO 8601 strings (`"2024-01-15"`); arrays stay arrays; wiki-links stay raw. Use when you need to `jq` the result or feed it to another tool.
 
 `--values` and `--fields` are mutually exclusive (exit 2). Empty results exit 0 in every mode; exit 2 still signals usage errors.
 

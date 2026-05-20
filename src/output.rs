@@ -58,7 +58,8 @@ pub fn format_json_query(
             serde_json::Value::Object(obj)
         })
         .collect();
-    serde_json::to_string(&serde_json::Value::Array(items)).unwrap_or_default()
+    serde_json::to_string(&serde_json::Value::Array(items))
+        .expect("serde_json::to_string of Value cannot fail")
 }
 
 pub fn format_json_values(counts: &HashMap<String, usize>, show_count: bool) -> String {
@@ -87,7 +88,8 @@ pub fn format_json_values(counts: &HashMap<String, usize>, show_count: bool) -> 
             serde_json::Value::Object(obj)
         })
         .collect();
-    serde_json::to_string(&serde_json::Value::Array(arr)).unwrap_or_default()
+    serde_json::to_string(&serde_json::Value::Array(arr))
+        .expect("serde_json::to_string of Value cannot fail")
 }
 
 fn narrow_frontmatter(fm: &YamlValue, fields: &[&str]) -> serde_json::Value {
@@ -116,17 +118,7 @@ fn lookup_field_ci_entry<'a>(fm: &'a YamlValue, name: &str) -> Option<(&'a str, 
 }
 
 pub(crate) fn lookup_field_ci<'a>(fm: &'a YamlValue, name: &str) -> Option<&'a YamlValue> {
-    let mapping = fm.as_mapping()?;
-    let name_lower = name.to_lowercase();
-    for (key, value) in mapping {
-        let Some(key_str) = key.as_str() else {
-            continue;
-        };
-        if key_str.to_lowercase() == name_lower {
-            return Some(value);
-        }
-    }
-    None
+    lookup_field_ci_entry(fm, name).map(|(_, v)| v)
 }
 
 pub(crate) fn yaml_to_json(v: &YamlValue) -> serde_json::Value {
@@ -479,6 +471,22 @@ mod tests {
         assert_eq!(parsed[0]["value"], "apple");
         assert_eq!(parsed[1]["value"], "mango");
         assert_eq!(parsed[2]["value"], "zebra");
+    }
+
+    #[test]
+    fn format_json_query_with_empty_fields_slice_yields_empty_frontmatter() {
+        let fm: YamlValue = from_str("status: active\nrating: 8").unwrap();
+        let matches = vec![(note_path("a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), Some(&[]));
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(parsed[0]["frontmatter"].as_object().unwrap().is_empty());
+    }
+
+    #[test]
+    fn format_tsv_with_empty_fields_slice_is_path_only() {
+        let fm: YamlValue = from_str("status: active").unwrap();
+        let line = format_tsv(&note_path("a.md"), &vault(), &fm, &[]);
+        assert_eq!(line, "a.md");
     }
 
     #[test]

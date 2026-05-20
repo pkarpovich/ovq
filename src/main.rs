@@ -137,16 +137,20 @@ fn run_query_mode(
         Some(spec) => output::parse_fields(spec),
         None => Vec::new(),
     };
+    let field_refs: Vec<&str> = parsed_fields.iter().map(String::as_str).collect();
+    let has_fields = !field_refs.is_empty();
 
     if json {
-        let field_refs: Vec<&str> = parsed_fields.iter().map(String::as_str).collect();
-        let fields_opt = fields_spec.map(|_| field_refs.as_slice());
+        let fields_opt = if has_fields {
+            Some(field_refs.as_slice())
+        } else {
+            None
+        };
         println!(
             "{}",
             output::format_json_query(&matches, vault_path, fields_opt)
         );
-    } else if fields_spec.is_some() {
-        let field_refs: Vec<&str> = parsed_fields.iter().map(String::as_str).collect();
+    } else if has_fields {
         for (path, fm) in &matches {
             println!(
                 "{}",
