@@ -1,6 +1,6 @@
 [package]
 name = "ovq"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Query Obsidian vault files by frontmatter properties"
 license = "MIT"
