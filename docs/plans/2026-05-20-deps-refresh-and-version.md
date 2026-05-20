@@ -66,9 +66,9 @@ The end product is shipped as v0.3.1.
 
 ### Task 1: Add `--version` flag to the CLI
 
-- [ ] Add `#[command(version)]` to the `Cli` struct in `src/main.rs`. The version string is read from `Cargo.toml` automatically.
-- [ ] Write a unit test that ensures `clap::Parser::try_parse_from(&["ovq", "--version"])` returns a recognisable error variant that clap raises for the `--version` flag (`ErrorKind::DisplayVersion`).
-- [ ] Run `cargo test`; new test plus existing 65 must pass.
+- [x] Add `#[command(version)]` to the `Cli` struct in `src/main.rs`. The version string is read from `Cargo.toml` automatically.
+- [x] Write a unit test that ensures `clap::Parser::try_parse_from(&["ovq", "--version"])` returns a recognisable error variant that clap raises for the `--version` flag (`ErrorKind::DisplayVersion`).
+- [x] Run `cargo test`; new test plus existing 65 must pass.
 
 ### Task 2: Bump Rust toolchain pin
 

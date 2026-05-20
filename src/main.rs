@@ -9,7 +9,11 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "ovq", about = "Query Obsidian vault files by frontmatter properties")]
+#[command(
+    name = "ovq",
+    version,
+    about = "Query Obsidian vault files by frontmatter properties"
+)]
 struct Cli {
     #[arg(long, env = "OVQ_VAULT")]
     vault: Option<PathBuf>,
@@ -199,5 +203,11 @@ mod tests {
     fn exit_for_values_run_any_count_is_zero() {
         assert_eq!(exit_for_values_run(1), 0);
         assert_eq!(exit_for_values_run(99), 0);
+    }
+
+    #[test]
+    fn cli_version_flag_triggers_display_version() {
+        let err = Cli::try_parse_from(["ovq", "--version"]).err().unwrap();
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
     }
 }
