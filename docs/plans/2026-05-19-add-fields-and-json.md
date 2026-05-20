@@ -184,30 +184,30 @@ Note: missing requested field in `--fields` narrowing is omitted from the JSON `
 
 ### Task 4: Smoke test, lint, docs
 
-- [ ] run `cargo build --release` - must succeed with no warnings
-- [ ] run `cargo clippy --all-targets -- -D warnings` - must be clean
-- [ ] smoke test against `~/Obsidian/PK Workspace` (use the real vault for one end-to-end sanity check):
+- [x] run `cargo build --release` - must succeed with no warnings
+- [x] run `cargo clippy --all-targets -- -D warnings` - must be clean (fixed 4 pre-existing lints: `map_or`->`is_none_or`/`is_some_and` in parser.rs and vault.rs, `flatten`->`map_while(Result::ok)` in vault.rs, `&PathBuf`->`&Path` in main.rs)
+- [x] smoke test against `~/Obsidian/PK Workspace` (use the real vault for one end-to-end sanity check):
   - `cargo run -- --vault "$HOME/Obsidian/PK Workspace" --fields attribution,source 'categories contains "Quotes"'`
   - `cargo run -- --vault "$HOME/Obsidian/PK Workspace" --json 'categories contains "Quotes"' | head -c 500`
   - verify TSV has 11 lines (one per Quote) and JSON parses with `jq`
-- [ ] update `README.md`:
+- [x] update `README.md`:
   - add `--fields` and `--json` to the Usage section with one example each
   - add a "Output formats" subsection explaining when to use which
-- [ ] update `CLAUDE.md` architecture section to mention `src/output.rs` and the formatter split
-- [ ] run `cargo test` final pass
+- [x] update `CLAUDE.md` architecture section to mention `src/output.rs` and the formatter split
+- [x] run `cargo test` final pass
 
 ### Task 5: Verify acceptance criteria
 
-- [ ] verify all requirements from Overview are implemented
-- [ ] verify plain mode output is unchanged: `cargo run -- 'status = "active"'` still emits one path per line. Only the exit code on empty result changes (now 0, was 1) - see ADR 0002.
-- [ ] verify `--fields` works with all value types observed in the vault (scalar string, number, bool, date, wiki-link, array, nested map)
-- [ ] verify `--json` output is valid JSON parseable by `jq` and `python -m json.tool`
-- [ ] verify `--json + --fields` narrows `frontmatter` to the requested keys (ADR 0001)
-- [ ] verify `--values --json` emits the unified `[{value, count?}]` schema in both `--count` and no-`--count` modes
-- [ ] verify `--values + --fields` exits 2 with the documented error
-- [ ] verify empty result exit code is 0 in all modes (plain, TSV, JSON, values) per ADR 0002
-- [ ] run full test suite (`cargo test`) - all green
-- [ ] run linter (`cargo clippy --all-targets -- -D warnings`) - all green
+- [x] verify all requirements from Overview are implemented
+- [x] verify plain mode output is unchanged: `cargo run -- 'status = "active"'` still emits one path per line. Only the exit code on empty result changes (now 0, was 1) - see ADR 0002.
+- [x] verify `--fields` works with all value types observed in the vault (scalar string, number, bool, date, wiki-link, array, nested map)
+- [x] verify `--json` output is valid JSON parseable by `jq` and `python -m json.tool`
+- [x] verify `--json + --fields` narrows `frontmatter` to the requested keys (ADR 0001)
+- [x] verify `--values --json` emits the unified `[{value, count?}]` schema in both `--count` and no-`--count` modes
+- [x] verify `--values + --fields` exits 2 with the documented error
+- [x] verify empty result exit code is 0 in all modes (plain, TSV, JSON, values) per ADR 0002
+- [x] run full test suite (`cargo test`) - all green
+- [x] run linter (`cargo clippy --all-targets -- -D warnings`) - all green
 
 ## Technical Details
 

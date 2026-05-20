@@ -5,7 +5,7 @@ mod values;
 mod vault;
 
 use clap::Parser;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
@@ -115,7 +115,7 @@ fn run_values_mode(
 fn run_query_mode(
     frontmatters: &[(PathBuf, serde_yaml::Value)],
     query_str: &str,
-    vault_path: &PathBuf,
+    vault_path: &Path,
     fields_spec: Option<&str>,
     json: bool,
 ) -> ExitCode {
