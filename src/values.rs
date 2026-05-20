@@ -1,11 +1,15 @@
+use crate::output::lookup_field_ci;
 use serde_json::Value;
 use std::collections::HashMap;
 
-pub fn collect_values(frontmatters: &[(String, Value)], property: &str) -> HashMap<String, usize> {
+pub fn collect_values<'a, I>(frontmatters: I, property: &str) -> HashMap<String, usize>
+where
+    I: IntoIterator<Item = &'a Value>,
+{
     let mut counts: HashMap<String, usize> = HashMap::new();
 
-    for (_, fm) in frontmatters {
-        let Some(value) = fm.get(property) else {
+    for fm in frontmatters {
+        let Some(value) = lookup_field_ci(fm, property) else {
             continue;
         };
 
@@ -59,23 +63,34 @@ mod tests {
 
     #[test]
     fn test_collect_values() {
-        let data = vec![
-            ("a.md".to_string(), json!({"status": "active"})),
-            ("b.md".to_string(), json!({"status": "done"})),
-            ("c.md".to_string(), json!({"status": "active"})),
+        let data = [
+            json!({"status": "active"}),
+            json!({"status": "done"}),
+            json!({"status": "active"}),
         ];
-
-        let counts = collect_values(&data, "status");
+        let counts = collect_values(data.iter(), "status");
         assert_eq!(counts.get("active"), Some(&2));
         assert_eq!(counts.get("done"), Some(&1));
     }
 
     #[test]
     fn test_collect_array_values() {
-        let data = vec![("x.md".to_string(), json!({"tags": ["a", "b", "a"]}))];
+        let data = [json!({"tags": ["a", "b", "a"]})];
 
-        let counts = collect_values(&data, "tags");
+        let counts = collect_values(data.iter(), "tags");
         assert_eq!(counts.get("a"), Some(&2));
         assert_eq!(counts.get("b"), Some(&1));
+    }
+
+    #[test]
+    fn test_collect_values_case_insensitive_property() {
+        let data = [
+            json!({"Status": "active"}),
+            json!({"status": "done"}),
+            json!({"STATUS": "active"}),
+        ];
+        let counts = collect_values(data.iter(), "status");
+        assert_eq!(counts.get("active"), Some(&2));
+        assert_eq!(counts.get("done"), Some(&1));
     }
 }

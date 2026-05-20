@@ -84,6 +84,9 @@ The YAML frontmatter parser is [serde-saphyr](https://crates.io/crates/serde-sap
 ## Usage
 
 ```bash
+# Print version and exit
+ovq --version
+
 # Query files
 ovq 'status = "active"'
 ovq --vault /path/to/vault 'tags contains "work"'

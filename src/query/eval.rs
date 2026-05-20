@@ -126,7 +126,7 @@ fn json_to_string(v: &JsonValue) -> Option<String> {
 }
 
 fn json_to_number(v: &JsonValue) -> Option<f64> {
-    v.as_f64().or_else(|| v.as_i64().map(|i| i as f64))
+    v.as_f64()
 }
 
 fn json_to_date(v: &JsonValue) -> Option<Date> {

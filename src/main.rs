@@ -94,12 +94,7 @@ fn run_values_mode(
     show_count: bool,
     json: bool,
 ) -> ExitCode {
-    let data: Vec<(String, serde_json::Value)> = frontmatters
-        .iter()
-        .map(|(p, fm)| (p.display().to_string(), fm.clone()))
-        .collect();
-
-    let counts = values::collect_values(&data, property);
+    let counts = values::collect_values(frontmatters.iter().map(|(_, fm)| fm), property);
 
     if json {
         let total = counts.len();
