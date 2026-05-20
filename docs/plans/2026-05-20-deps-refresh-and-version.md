@@ -89,9 +89,9 @@ Rust 1.95's `if let` guards in match arms is the only feature with a real future
 
 ### Task 3: Refresh transitive dependencies
 
-- [ ] Run `cargo update` to pull the latest within the existing semver-compatible ranges. Direct deps stay at their declared majors (`clap = "4"`, `serde = "1"`, etc.), only `Cargo.lock` changes.
-- [ ] Run `cargo build --release` and `cargo test`. Must pass unchanged.
-- [ ] Run `cargo audit` (install via `cargo install cargo-audit` if not present). All advisories must be clean or annotated in this plan as deliberate accepted risk.
+- [x] Run `cargo update` to pull the latest within the existing semver-compatible ranges. Direct deps stay at their declared majors (`clap = "4"`, `serde = "1"`, etc.), only `Cargo.lock` changes.
+- [x] Run `cargo build --release` and `cargo test`. Must pass unchanged.
+- [x] Run `cargo audit` (install via `cargo install cargo-audit` if not present). All advisories must be clean or annotated in this plan as deliberate accepted risk.
 
 ### Task 4: Replace serde_yaml with serde-saphyr targeting `serde_json::Value`
 
