@@ -1,5 +1,6 @@
 use serde_yaml::Value as YamlValue;
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 pub fn format_path(path: &Path, vault: &Path) -> String {
     path.strip_prefix(vault)
@@ -34,6 +35,84 @@ pub fn format_tsv(path: &Path, vault: &Path, fm: &YamlValue, fields: &[&str]) ->
         cells.push(cell);
     }
     cells.join("\t")
+}
+
+pub fn format_json_query(
+    matches: &[(PathBuf, YamlValue)],
+    vault: &Path,
+    fields: Option<&[&str]>,
+) -> String {
+    let items: Vec<serde_json::Value> = matches
+        .iter()
+        .map(|(path, fm)| {
+            let frontmatter_json = match fields {
+                Some(list) => narrow_frontmatter(fm, list),
+                None => yaml_to_json(fm),
+            };
+            let mut obj = serde_json::Map::new();
+            obj.insert(
+                "file".to_string(),
+                serde_json::Value::String(format_path(path, vault)),
+            );
+            obj.insert("frontmatter".to_string(), frontmatter_json);
+            serde_json::Value::Object(obj)
+        })
+        .collect();
+    serde_json::to_string(&serde_json::Value::Array(items)).unwrap_or_default()
+}
+
+pub fn format_json_values(counts: &HashMap<String, usize>, show_count: bool) -> String {
+    let mut items: Vec<(String, usize)> = counts
+        .iter()
+        .map(|(k, v)| (k.clone(), *v))
+        .collect();
+
+    if show_count {
+        items.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    } else {
+        items.sort_by(|a, b| a.0.cmp(&b.0));
+    }
+
+    let arr: Vec<serde_json::Value> = items
+        .into_iter()
+        .map(|(value, count)| {
+            let mut obj = serde_json::Map::new();
+            obj.insert("value".to_string(), serde_json::Value::String(value));
+            if show_count {
+                obj.insert(
+                    "count".to_string(),
+                    serde_json::Value::Number((count as u64).into()),
+                );
+            }
+            serde_json::Value::Object(obj)
+        })
+        .collect();
+    serde_json::to_string(&serde_json::Value::Array(arr)).unwrap_or_default()
+}
+
+fn narrow_frontmatter(fm: &YamlValue, fields: &[&str]) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    for field in fields {
+        let Some((key, value)) = lookup_field_ci_entry(fm, field) else {
+            continue;
+        };
+        obj.insert(key.to_string(), yaml_to_json(value));
+    }
+    serde_json::Value::Object(obj)
+}
+
+fn lookup_field_ci_entry<'a>(fm: &'a YamlValue, name: &str) -> Option<(&'a str, &'a YamlValue)> {
+    let mapping = fm.as_mapping()?;
+    let name_lower = name.to_lowercase();
+    for (key, value) in mapping {
+        let Some(key_str) = key.as_str() else {
+            continue;
+        };
+        if key_str.to_lowercase() == name_lower {
+            return Some((key_str, value));
+        }
+    }
+    None
 }
 
 pub(crate) fn lookup_field_ci<'a>(fm: &'a YamlValue, name: &str) -> Option<&'a YamlValue> {
@@ -260,5 +339,160 @@ mod tests {
             format_path(&PathBuf::from("/other/a.md"), &PathBuf::from("/vault")),
             "/other/a.md"
         );
+    }
+
+    #[test]
+    fn format_json_query_empty_matches() {
+        let matches: Vec<(PathBuf, YamlValue)> = Vec::new();
+        assert_eq!(format_json_query(&matches, &vault(), None), "[]");
+    }
+
+    #[test]
+    fn format_json_query_single_match_full_frontmatter() {
+        let fm: YamlValue = from_str("status: active\nrating: 8").unwrap();
+        let matches = vec![(note_path("a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), None);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["file"], "a.md");
+        assert_eq!(parsed[0]["frontmatter"]["status"], "active");
+        assert_eq!(parsed[0]["frontmatter"]["rating"], 8);
+    }
+
+    #[test]
+    fn format_json_query_with_fields_narrows() {
+        let fm: YamlValue = from_str("status: active\nrating: 8\nextra: skip").unwrap();
+        let matches = vec![(note_path("a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), Some(&["status", "rating"]));
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let fm_obj = parsed[0]["frontmatter"].as_object().unwrap();
+        assert_eq!(fm_obj.len(), 2);
+        assert!(fm_obj.contains_key("status"));
+        assert!(fm_obj.contains_key("rating"));
+        assert!(!fm_obj.contains_key("extra"));
+    }
+
+    #[test]
+    fn format_json_query_with_fields_case_insensitive() {
+        let fm: YamlValue = from_str("status: active").unwrap();
+        let matches = vec![(note_path("a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), Some(&["Status"]));
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["frontmatter"]["status"], "active");
+    }
+
+    #[test]
+    fn format_json_query_yaml_array_stays_array() {
+        let fm: YamlValue = from_str("tags: [a, b, c]").unwrap();
+        let matches = vec![(note_path("a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), None);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["frontmatter"]["tags"], serde_json::json!(["a", "b", "c"]));
+    }
+
+    #[test]
+    fn format_json_query_nested_map_stays_nested() {
+        let fm: YamlValue = from_str("cover:\n  url: x\n  width: 500").unwrap();
+        let matches = vec![(note_path("a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), None);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["frontmatter"]["cover"]["url"], "x");
+        assert_eq!(parsed[0]["frontmatter"]["cover"]["width"], 500);
+    }
+
+    #[test]
+    fn format_json_query_yaml_date_renders_as_iso_string() {
+        let fm: YamlValue = from_str("date: 2024-01-15").unwrap();
+        let matches = vec![(note_path("a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), None);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["frontmatter"]["date"], "2024-01-15");
+    }
+
+    #[test]
+    fn format_json_query_vault_relative_path() {
+        let fm: YamlValue = from_str("k: v").unwrap();
+        let matches = vec![(PathBuf::from("/vault/sub/a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), None);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["file"], "sub/a.md");
+    }
+
+    #[test]
+    fn format_json_query_absolute_path_when_outside_vault() {
+        let fm: YamlValue = from_str("k: v").unwrap();
+        let matches = vec![(PathBuf::from("/other/a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), None);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["file"], "/other/a.md");
+    }
+
+    #[test]
+    fn format_json_query_is_compact_single_line() {
+        let fm: YamlValue = from_str("status: active").unwrap();
+        let matches = vec![(note_path("a.md"), fm)];
+        let out = format_json_query(&matches, &vault(), None);
+        assert!(!out.contains('\n'));
+        assert!(!out.contains("  "));
+    }
+
+    #[test]
+    fn format_json_values_empty_counts() {
+        let counts: HashMap<String, usize> = HashMap::new();
+        assert_eq!(format_json_values(&counts, false), "[]");
+        assert_eq!(format_json_values(&counts, true), "[]");
+    }
+
+    #[test]
+    fn format_json_values_without_count() {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        counts.insert("active".to_string(), 2);
+        counts.insert("done".to_string(), 1);
+        let out = format_json_values(&counts, false);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed, serde_json::json!([{"value": "active"}, {"value": "done"}]));
+    }
+
+    #[test]
+    fn format_json_values_with_count() {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        counts.insert("active".to_string(), 2);
+        counts.insert("done".to_string(), 1);
+        let out = format_json_values(&counts, true);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(
+            parsed,
+            serde_json::json!([
+                {"value": "active", "count": 2},
+                {"value": "done", "count": 1}
+            ])
+        );
+    }
+
+    #[test]
+    fn format_json_values_sorting_alphabetic_without_count() {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        counts.insert("zebra".to_string(), 1);
+        counts.insert("apple".to_string(), 5);
+        counts.insert("mango".to_string(), 3);
+        let out = format_json_values(&counts, false);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["value"], "apple");
+        assert_eq!(parsed[1]["value"], "mango");
+        assert_eq!(parsed[2]["value"], "zebra");
+    }
+
+    #[test]
+    fn format_json_values_sorting_count_desc_then_alphabetic() {
+        let mut counts: HashMap<String, usize> = HashMap::new();
+        counts.insert("zebra".to_string(), 1);
+        counts.insert("apple".to_string(), 5);
+        counts.insert("banana".to_string(), 5);
+        counts.insert("mango".to_string(), 3);
+        let out = format_json_values(&counts, true);
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed[0]["value"], "apple");
+        assert_eq!(parsed[1]["value"], "banana");
+        assert_eq!(parsed[2]["value"], "mango");
+        assert_eq!(parsed[3]["value"], "zebra");
     }
 }

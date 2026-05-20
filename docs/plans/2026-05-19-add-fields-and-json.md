@@ -133,16 +133,16 @@ Note: serde_json dep (listed in Task 2) was pulled forward into Task 1 because T
 
 ### Task 2: Add JSON formatter (`format_json`)
 
-- [ ] add `serde_json = "1"` to `Cargo.toml` dependencies
-- [ ] in `src/output.rs`, add `pub fn format_json_query(matches: &[(PathBuf, YamlValue)], vault: &Path, fields: Option<&[&str]>) -> String`
+- [x] add `serde_json = "1"` to `Cargo.toml` dependencies (already done in Task 1; verified present)
+- [x] in `src/output.rs`, add `pub fn format_json_query(matches: &[(PathBuf, YamlValue)], vault: &Path, fields: Option<&[&str]>) -> String`
   - builds `Vec<serde_json::Value>` of `{ "file": "<vault-relative path>", "frontmatter": <fm-as-json> }`
   - when `fields` is `Some(list)`, narrow `frontmatter` to only those keys (case-insensitive lookup, same as TSV)
   - serialise with `serde_json::to_string` (compact, no `to_string_pretty`)
-- [ ] add `pub fn format_json_values(counts: &HashMap<String, usize>, show_count: bool) -> String`
+- [x] add `pub fn format_json_values(counts: &HashMap<String, usize>, show_count: bool) -> String`
   - builds `[{value}]` if `show_count == false`, `[{value, count}]` if `true`
   - sort the array using the same ordering values mode already uses for plain output (alphabetic without count, count-desc with count) so JSON and plain ordering match
-- [ ] write a `pub(crate) fn yaml_to_json(v: &YamlValue) -> serde_json::Value` helper: walk YAML, produce equivalent JSON. YAML datetimes render as ISO 8601 strings. Unrepresentable values (tagged scalars, etc) fall back to `null` with a `// TODO` for follow-up if they actually appear.
-- [ ] write tests for `format_json_query`:
+- [x] write a `pub(crate) fn yaml_to_json(v: &YamlValue) -> serde_json::Value` helper: walk YAML, produce equivalent JSON. YAML datetimes render as ISO 8601 strings (serde_yaml parses dates as strings, so this is automatic). Unrepresentable values (tagged scalars, etc) fall back to `null` (already done in Task 1).
+- [x] write tests for `format_json_query`:
   - empty matches -> `[]`
   - single match with scalar fields, no `--fields` (full frontmatter)
   - single match with `--fields a,b` narrows to those keys only
@@ -150,12 +150,14 @@ Note: serde_json dep (listed in Task 2) was pulled forward into Task 1 because T
   - nested map stays nested JSON object
   - YAML date renders as `"YYYY-MM-DD"` string
   - vault-relative path correct, absolute fallback when path outside vault
-- [ ] write tests for `format_json_values`:
+- [x] write tests for `format_json_values`:
   - empty counts -> `[]`
   - `[{value}]` without count
   - `[{value, count}]` with count
   - sorting matches plain mode
-- [ ] run `cargo test` - all tests must pass before task 3
+- [x] run `cargo test` - all tests must pass before task 3
+
+Note: missing requested field in `--fields` narrowing is omitted from the JSON `frontmatter` object (no `null` placeholder), matching ADR 0001's "requested fields included, unrequested omitted" principle.
 
 ### Task 3: Wire `--fields` and `--json` flags into the CLI
 
