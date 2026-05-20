@@ -244,7 +244,7 @@ impl<'a> Parser<'a> {
             return false;
         }
         let after = remaining.chars().nth(kw.len());
-        if after.map_or(true, |c| !c.is_alphanumeric() && c != '_') {
+        if after.is_none_or(|c| !c.is_alphanumeric() && c != '_') {
             self.pos += kw.len();
             true
         } else {

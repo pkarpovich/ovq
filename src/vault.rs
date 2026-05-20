@@ -15,7 +15,7 @@ pub fn collect_markdown_files(vault_path: &Path) -> Vec<PathBuf> {
 
     for entry in walker.flatten() {
         let path = entry.path();
-        if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "md") {
             files.push(path.to_path_buf());
         }
     }
@@ -28,7 +28,7 @@ pub fn read_paths_from_stdin() -> Vec<PathBuf> {
     stdin
         .lock()
         .lines()
-        .flatten()
+        .map_while(Result::ok)
         .filter(|line| !line.trim().is_empty())
         .map(PathBuf::from)
         .collect()
