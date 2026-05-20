@@ -11,14 +11,17 @@ pub fn format_path(path: &Path, vault: &Path) -> String {
 
 pub fn parse_fields(spec: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
+    let mut seen_lower: Vec<String> = Vec::new();
     for piece in spec.split(',') {
         let trimmed = piece.trim();
         if trimmed.is_empty() {
             continue;
         }
-        if out.iter().any(|x| x == trimmed) {
+        let key = trimmed.to_lowercase();
+        if seen_lower.iter().any(|x| x == &key) {
             continue;
         }
+        seen_lower.push(key);
         out.push(trimmed.to_string());
     }
     out
@@ -26,7 +29,7 @@ pub fn parse_fields(spec: &str) -> Vec<String> {
 
 pub fn format_tsv(path: &Path, vault: &Path, fm: &YamlValue, fields: &[&str]) -> String {
     let mut cells: Vec<String> = Vec::with_capacity(fields.len() + 1);
-    cells.push(format_path(path, vault));
+    cells.push(normalize_cell(&format_path(path, vault)));
     for field in fields {
         let cell = match lookup_field_ci(fm, field) {
             Some(v) => render_cell_for_tsv(v),
@@ -233,6 +236,18 @@ mod tests {
     }
 
     #[test]
+    fn parse_fields_dedupes_case_insensitively_preserving_first_spelling() {
+        assert_eq!(
+            parse_fields("status,Status,STATUS"),
+            vec!["status".to_string()]
+        );
+        assert_eq!(
+            parse_fields("Status,status"),
+            vec!["Status".to_string()]
+        );
+    }
+
+    #[test]
     fn parse_fields_empty_input() {
         assert!(parse_fields("").is_empty());
         assert!(parse_fields("   ").is_empty());
@@ -315,6 +330,14 @@ mod tests {
             &["title", "rating", "active", "date"],
         );
         assert_eq!(line, "a.md\tHello\t9\ttrue\t2024-01-15");
+    }
+
+    #[test]
+    fn format_tsv_path_with_tab_or_newline_normalised_to_space() {
+        let fm: YamlValue = from_str("status: active").unwrap();
+        let weird = PathBuf::from("/vault/has\ttab/and\nnewline.md");
+        let line = format_tsv(&weird, &vault(), &fm, &["status"]);
+        assert_eq!(line, "has tab/and newline.md\tactive");
     }
 
     #[test]
