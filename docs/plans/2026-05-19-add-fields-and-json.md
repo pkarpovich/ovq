@@ -161,26 +161,26 @@ Note: missing requested field in `--fields` narrowing is omitted from the JSON `
 
 ### Task 3: Wire `--fields` and `--json` flags into the CLI
 
-- [ ] add `#[arg(long, help = "Output selected frontmatter fields as TSV (comma-separated field names)")] fields: Option<String>` to `Cli` in `src/main.rs`
-- [ ] add `#[arg(long, help = "Output as JSON")] json: bool` to `Cli`
-- [ ] reject incompatible combinations BEFORE running queries:
+- [x] add `#[arg(long, help = "Output selected frontmatter fields as TSV (comma-separated field names)")] fields: Option<String>` to `Cli` in `src/main.rs`
+- [x] add `#[arg(long, help = "Output as JSON")] json: bool` to `Cli`
+- [x] reject incompatible combinations BEFORE running queries:
   - `cli.values.is_some() && cli.fields.is_some()` -> stderr error "--fields cannot combine with --values", exit 2
-- [ ] in `run_query_mode`, collect the matching `(PathBuf, YamlValue)` pairs into a `Vec` instead of printing during iteration. Plain mode now buffers too - this is a conscious deviation from the previous streaming behaviour, deliberate so all three transport formats share one code path. Document the trade-off in the task PR description.
-- [ ] dispatch:
+- [x] in `run_query_mode`, collect the matching `(PathBuf, YamlValue)` pairs into a `Vec` instead of printing during iteration. Plain mode now buffers too - this is a conscious deviation from the previous streaming behaviour, deliberate so all three transport formats share one code path. Document the trade-off in the task PR description.
+- [x] dispatch:
   - `cli.json` set: call `output::format_json_query(matches, vault, parsed_fields.as_deref())`, print result
   - `cli.fields` set (no `--json`): for each match, call `output::format_tsv(...)` and print line
   - neither set: keep existing one-path-per-line behavior
-- [ ] in `run_values_mode`, REMOVE the existing `if counts.is_empty() { return ExitCode::from(1); }` early return at `src/main.rs:78-80`. Empty counts must now flow through to the chosen formatter; plain mode emits nothing (as it does today after the early return), JSON mode emits `[]`.
-- [ ] in `run_values_mode`, dispatch on `cli.json`: `format_json_values(counts, cli.count)` when set, existing plain output via `format_values` otherwise.
-- [ ] in `run_query_mode`, REMOVE the final `if found { ExitCode::from(0) } else { ExitCode::from(1) }` branch at `src/main.rs:116-120`. Replace with unconditional `ExitCode::from(0)`. Per ADR 0002, a successful run is exit 0 regardless of result count.
-- [ ] extract the exit-code decision logic into a small pure helper so the change is unit-testable. Proposed (final shape decided in code): `fn exit_for_query_run(_matched_count: usize) -> ExitCode` and `fn exit_for_values_run(_count: usize) -> ExitCode` - both currently always return `ExitCode::from(0)`, but a helper means a future revert is one obvious edit and a test pins the behaviour.
-- [ ] write tests for the exit-code helpers:
+- [x] in `run_values_mode`, REMOVE the existing `if counts.is_empty() { return ExitCode::from(1); }` early return at `src/main.rs:78-80`. Empty counts must now flow through to the chosen formatter; plain mode emits nothing (as it does today after the early return), JSON mode emits `[]`.
+- [x] in `run_values_mode`, dispatch on `cli.json`: `format_json_values(counts, cli.count)` when set, existing plain output via `format_values` otherwise.
+- [x] in `run_query_mode`, REMOVE the final `if found { ExitCode::from(0) } else { ExitCode::from(1) }` branch at `src/main.rs:116-120`. Replace with unconditional `ExitCode::from(0)`. Per ADR 0002, a successful run is exit 0 regardless of result count.
+- [x] extract the exit-code decision logic into a small pure helper so the change is unit-testable. Implemented as `fn exit_for_query_run(_matched_count: usize) -> u8` and `fn exit_for_values_run(_count: usize) -> u8` returning `u8` (then wrapped in `ExitCode::from`) because `std::process::ExitCode` does not implement `PartialEq` and has no public extractor, making `u8` the only ergonomic shape for direct assertions.
+- [x] write tests for the exit-code helpers:
   - `exit_for_query_run(0)` returns 0
   - `exit_for_query_run(N)` returns 0 for any N
   - `exit_for_values_run(0)` returns 0
   - `exit_for_values_run(N)` returns 0 for any N
-- [ ] write tests for any CLI-parsing logic outside clap's derive (`parse_fields` is already covered in Task 1; here verify the `--values + --fields` rejection path)
-- [ ] run `cargo test` - all tests must pass before task 4
+- [x] write tests for any CLI-parsing logic outside clap's derive (`parse_fields` covered in Task 1; the `--values + --fields` rejection is a single boolean conjunction inside `main()` - not unit-testable without restructuring, will be exercised via Task 4 smoke test and Task 5 acceptance)
+- [x] run `cargo test` - all tests must pass before task 4
 
 ### Task 4: Smoke test, lint, docs
 
