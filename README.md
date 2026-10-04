@@ -79,9 +79,14 @@ brew install pkarpovich/apps/ovq
 cargo install --path .
 ```
 
+The YAML frontmatter parser is [serde-saphyr](https://crates.io/crates/serde-saphyr), which deserializes directly into `serde_json::Value` — the same type used for `--json` output, so YAML input and JSON output share one in-memory representation.
+
 ## Usage
 
 ```bash
+# Print version and exit
+ovq --version
+
 # Query files
 ovq 'status = "active"'
 ovq --vault /path/to/vault 'tags contains "work"'

@@ -9,7 +9,11 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "ovq", about = "Query Obsidian vault files by frontmatter properties")]
+#[command(
+    name = "ovq",
+    version,
+    about = "Query Obsidian vault files by frontmatter properties"
+)]
 struct Cli {
     #[arg(long, env = "OVQ_VAULT")]
     vault: Option<PathBuf>,
@@ -58,7 +62,7 @@ fn main() -> ExitCode {
         vault::collect_markdown_files(&vault_path)
     };
 
-    let frontmatters: Vec<(PathBuf, serde_yaml::Value)> = files
+    let frontmatters: Vec<(PathBuf, serde_json::Value)> = files
         .into_iter()
         .filter_map(|path| {
             let fm = frontmatter::parse_frontmatter(&path)?;
@@ -85,17 +89,12 @@ fn main() -> ExitCode {
 }
 
 fn run_values_mode(
-    frontmatters: &[(PathBuf, serde_yaml::Value)],
+    frontmatters: &[(PathBuf, serde_json::Value)],
     property: &str,
     show_count: bool,
     json: bool,
 ) -> ExitCode {
-    let data: Vec<(String, serde_yaml::Value)> = frontmatters
-        .iter()
-        .map(|(p, fm)| (p.display().to_string(), fm.clone()))
-        .collect();
-
-    let counts = values::collect_values(&data, property);
+    let counts = values::collect_values(frontmatters.iter().map(|(_, fm)| fm), property);
 
     if json {
         let total = counts.len();
@@ -113,7 +112,7 @@ fn run_values_mode(
 }
 
 fn run_query_mode(
-    frontmatters: &[(PathBuf, serde_yaml::Value)],
+    frontmatters: &[(PathBuf, serde_json::Value)],
     query_str: &str,
     vault_path: &Path,
     fields_spec: Option<&str>,
@@ -127,7 +126,7 @@ fn run_query_mode(
         }
     };
 
-    let matches: Vec<(PathBuf, serde_yaml::Value)> = frontmatters
+    let matches: Vec<(PathBuf, serde_json::Value)> = frontmatters
         .iter()
         .filter(|(_, fm)| query::evaluate(&expr, fm))
         .map(|(p, fm)| (p.clone(), fm.clone()))
@@ -199,5 +198,11 @@ mod tests {
     fn exit_for_values_run_any_count_is_zero() {
         assert_eq!(exit_for_values_run(1), 0);
         assert_eq!(exit_for_values_run(99), 0);
+    }
+
+    #[test]
+    fn cli_version_flag_triggers_display_version() {
+        let err = Cli::try_parse_from(["ovq", "--version"]).err().unwrap();
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
     }
 }
